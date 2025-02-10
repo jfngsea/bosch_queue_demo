@@ -6,6 +6,8 @@
 #define MYQUEUE_H
 
 #include <stdexcept>
+#include <mutex>
+#include <condition_variable>
 
 #include "Queue.h"
 
@@ -17,6 +19,9 @@ class MyQueue : public Queue<T> {
     int pop_idx =0;
     int elem_count=0;
 
+    std::mutex m;
+    std::condition_variable cv_is_not_empty;
+
 public:
     explicit MyQueue(int size) {
         this->sz = size;
@@ -27,6 +32,9 @@ public:
     }
 
     void push(T item) override {
+        // all function body is critical section
+        std::lock_guard<std::mutex> lock(m);
+
         if (elem_count == sz) {
             data[pop_idx] = item;
             pop_idx = (pop_idx + 1) % sz;
@@ -36,9 +44,12 @@ public:
     }
 
     T pop() override {
-        if (elem_count == 0) {
-            //wait
-            throw std::out_of_range("MyQueue::pop empty");
+        std::unique_lock lock(m);
+
+        // wait for queue to be not empty
+        while(empty())
+        {
+            cv_is_not_empty.wait(lock);
         }
 
         T elem = data[pop_idx];
@@ -49,7 +60,26 @@ public:
     }
 
     T popWithTimeout(int milliseconds) override {
-        return pop();
+        std::unique_lock lock(m);
+
+        // wait for queue to be not empty or for timeout
+        while(empty())
+        {
+            auto res = cv_is_not_empty.wait_for(
+                lock,
+                std::chrono::milliseconds(milliseconds));
+
+            if (res == std::cv_status::timeout)
+            {
+                throw std::runtime_error("Timeout in popWithTimeout");
+            }
+        }
+
+        T elem = data[pop_idx];
+        elem_count--;
+        pop_idx = (pop_idx + 1) % sz;
+
+        return elem;
     }
 
     int count() override {
@@ -58,6 +88,10 @@ public:
 
     int size() override {
         return this->sz;
+    }
+
+    inline bool empty() {
+        return elem_count == 0;
     }
 
 };
