@@ -17,6 +17,7 @@ class MyQueue : public Queue<T> {
     T* data;
 
     int pop_idx =0;
+    int push_idx =0;
     int elem_count=0;
 
     std::mutex m;
@@ -35,12 +36,18 @@ public:
         // all function body is critical section
         std::lock_guard<std::mutex> lock(m);
 
+        // if queu is full replace the oldest elem (given by pop idx)
         if (elem_count == sz) {
-            data[pop_idx] = item;
+            //push_idx = pop_idx;
+            // update pop_idx to point to the new oldest item
             pop_idx = (pop_idx + 1) % sz;
         } else {
-            data[elem_count++] = item;
+            elem_count+=1;
         }
+        data[push_idx] = item;
+        push_idx = (push_idx + 1) % sz;
+
+        cv_is_not_empty.notify_one();
     }
 
     T pop() override {
@@ -53,7 +60,7 @@ public:
         }
 
         T elem = data[pop_idx];
-        elem_count--;
+        elem_count-=1;
         pop_idx = (pop_idx + 1) % sz;
 
         return elem;
@@ -90,8 +97,12 @@ public:
         return this->sz;
     }
 
-    inline bool empty() {
+    bool empty() {
         return elem_count == 0;
+    }
+
+    void print_status() {
+        printf("Count: %d | push_idx: %d | pop_idx: %d\n", this->elem_count, this->push_idx, this->pop_idx);
     }
 
 };
