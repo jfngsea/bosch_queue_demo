@@ -5,6 +5,9 @@
 #ifndef QUEUE_H
 #define QUEUE_H
 
+/**
+ * Queue Interface
+ */
 template <typename T>
 class Queue {
 public:

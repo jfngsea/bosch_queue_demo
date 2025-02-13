@@ -11,6 +11,12 @@
 
 #include "Queue.h"
 
+/**
+ * Implementation of a Queue implemented using ring buffers.
+ * This Queue stores a given amount of elements with push evicting the oldest pushed element (LRU).
+ *
+ * @tparam T Type to store in the queue
+ */
 template <typename T>
 class MyQueue : public Queue<T> {
     int sz;
@@ -24,6 +30,10 @@ class MyQueue : public Queue<T> {
     std::condition_variable cv_is_not_empty;
 
 public:
+    /**
+     * Initializes the Queue
+     * @param size The maximum ammount of elements to be stored.
+     */
     explicit MyQueue(int size) {
         this->sz = size;
         data = new T[size];
@@ -32,24 +42,32 @@ public:
         delete[] data;
     }
 
+    /**
+     * Pushes a new item into the queue.
+     * If the queue is already full, the least recent element is resplaced.
+     * @param item Item to push into the queue
+     */
     void push(T item) override {
         // all function body is critical section
         std::lock_guard<std::mutex> lock(m);
 
-        // if queu is full replace the oldest elem (given by pop idx)
+        // if queu is full update pop_idx to point to the new oldest item
         if (elem_count == sz) {
-            //push_idx = pop_idx;
-            // update pop_idx to point to the new oldest item
             pop_idx = (pop_idx + 1) % sz;
         } else {
             elem_count+=1;
         }
+        // add element into the queue
         data[push_idx] = item;
         push_idx = (push_idx + 1) % sz;
 
         cv_is_not_empty.notify_one();
     }
 
+    /**
+     * Pops the least recent element from the queue, blocking if the queue is empty.
+     * @return item from the queue.
+     */
     T pop() override {
         std::unique_lock lock(m);
 
@@ -66,6 +84,12 @@ public:
         return elem;
     }
 
+    /**
+     * Pops the least recent element from the queue,
+     * blocking if the queue is empty until the specified time in milliseconds.
+     * @param milliseconds The  given timeout time
+     * @return item from the queue.
+     */
     T popWithTimeout(int milliseconds) override {
         std::unique_lock lock(m);
 
@@ -89,22 +113,29 @@ public:
         return elem;
     }
 
+    /**
+     *
+     * @return the numbers of elements stored in the queue
+     */
     int count() override {
         return elem_count;
     }
 
+    /**
+     *
+     * @return the size of the queue.
+     */
     int size() override {
         return this->sz;
     }
 
+    /**
+     *
+     * @return True if the queue has no elements, false otherwise
+     */
     bool empty() {
         return elem_count == 0;
     }
-
-    void print_status() {
-        printf("Count: %d | push_idx: %d | pop_idx: %d\n", this->elem_count, this->push_idx, this->pop_idx);
-    }
-
 };
 
 #endif //MYQUEUE_H
